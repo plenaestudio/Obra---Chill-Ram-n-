@@ -2,27 +2,25 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Seguimiento de Pagos — Chill Ramón</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chill Ramón — Planilla de Obra</title>
     <style>
         :root {
             --bg-color: #f8fafc;
             --card-bg: #ffffff;
             --text-main: #1e293b;
             --text-muted: #64748b;
-            --primary: #334155;
+            --primary: #2d3d4d;
             --accent-paid: #16a34a;
             --accent-pending: #ea580c;
             --border-color: #e2e8f0;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); padding: 24px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 950px; }
-        
-        /* Header idéntico al solicitado sin datos bancarios principales */
-        header { background: #2d3d4d; color: white; padding: 30px; border-radius: 12px; margin-bottom: 25px; }
+        .container { width: 100%; max-width: 1000px; }
+        header { background: var(--primary); color: white; padding: 30px; border-radius: 12px; margin-bottom: 25px; }
         header h1 { font-size: 24px; font-weight: 600; }
         header p { font-size: 14px; color: #94a3b8; margin-top: 6px; }
-
         .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 35px; }
         .card { background: var(--card-bg); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); border-left: 5px solid var(--primary); }
         .card.total { border-left-color: #3b82f6; }
@@ -32,11 +30,10 @@
         .card-value { font-size: 28px; font-weight: 700; margin-top: 8px; }
         .card.paid .card-value { color: var(--accent-paid); }
         .card.pending .card-value { color: var(--accent-pending); }
-
-        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .btn { background-color: #2d3d4d; color: white; border: none; padding: 12px 20px; font-size: 14px; font-weight: 600; border-radius: 8px; cursor: pointer; }
-        
-        .item-row { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+        .status-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .loading { font-size: 16px; color: var(--text-muted); text-align: center; padding: 40px; background: white; border-radius: 12px; border: 1px solid var(--border-color); }
+        .items-container { display: flex; flex-direction: column; gap: 20px; }
+        .item-row { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.01); }
         .item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
         .item-title { font-size: 18px; font-weight: 600; }
         .item-provider { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
@@ -44,235 +41,129 @@
         .badge.pendiente { background-color: #ffedd5; color: #ea580c; }
         .badge.parcial { background-color: #fef9c3; color: #b45309; }
         .badge.pagado { background-color: #dcfce7; color: #16a34a; }
-
-        .values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #f1f5f9; margin-bottom: 16px; }
+        .values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #f1f5f9; margin-bottom: 16px; }
         .val-box { display: flex; flex-direction: column; }
-        .val-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
-        .val-amount { font-size: 15px; font-weight: 600; margin-top: 2px; }
-
-        /* Contenedor interactivo por ítem */
-        .payment-method-container { background: #f1f5f9; padding: 16px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #e2e8f0; }
-        .method-selector { display: flex; gap: 20px; margin-bottom: 12px; }
-        .radio-label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-        .method-content { display: none; }
-        .method-content.active { display: block; }
-        .online-link-box a { color: #2563eb; font-size: 13px; text-decoration: none; font-weight: 600; }
-        .bank-details-box { background: white; padding: 12px 16px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; line-height: 1.5; }
-        .copy-badge { background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-left: 6px; display: inline-block; color: #1e293b; }
-        .copy-badge:hover { background: #cbd5e1; }
-
-        .footer-controls { display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #e2e8f0; padding-top: 12px; }
-        .checkbox-group { display: flex; gap: 20px; }
-        .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
-        .checkbox-label input { width: 16px; height: 16px; accent-color: var(--accent-paid); }
-        .btn-delete { background: none; border: none; color: #ef4444; font-size: 13px; cursor: pointer; }
-
-        /* Estilos del Formulario Modal */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; padding: 16px; z-index: 100; }
-        .modal-content { background: white; padding: 24px; border-radius: 12px; width: 100%; max-width: 500px; }
-        .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
-        .form-group { margin-bottom: 14px; }
-        .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
-        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
-        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .val-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 500; }
+        .val-amount { font-size: 14px; font-weight: 600; margin-top: 2px; }
+        .info-block { background: #f1f5f9; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 12px; font-size: 13px; }
+        .bank-box { background: white; padding: 12px 16px; border-radius: 6px; border: 1px solid #cbd5e1; margin-top: 6px; line-height: 1.5; }
+        .copy-btn { background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-left: 6px; display: inline-block; color: #1e293b; border: none; }
+        .copy-btn:hover { background: #cbd5e1; }
+        .online-btn { display: inline-block; background: #2563eb; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; margin-top: 6px; }
+        .dates-box { display: flex; gap: 20px; font-size: 12px; color: var(--text-muted); margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <header>
         <h1>Chill Ramón — Planilla de Obra</h1>
-        <p>Control de Compras y Pagos en Tiempo Real</p>
+        <p>Actualizado automáticamente en tiempo real</p>
     </header>
-
-    <div class="summary-grid">
-        <div class="card total"><div class="card-label">Total c/ Envío</div><div class="card-value" id="grand-total">$ 0</div></div>
-        <div class="card paid"><div class="card-label">Total Abonado</div><div class="card-value" id="grand-paid">$ 0</div></div>
-        <div class="card pending"><div class="card-label">Saldo Pendiente</div><div class="card-value" id="grand-pending">$ 0</div></div>
+    <div class="summary-grid" id="summary-section" style="display:none;">
+        <div class="card total"><div class="card-label">Total Presupuestado (ARS)</div><div class="card-value" id="grand-total">$ 0</div></div>
+        <div class="card paid"><div class="card-label">Total Abonado (ARS)</div><div class="card-value" id="grand-paid">$ 0</div></div>
+        <div class="card pending"><div class="card-label">Saldo Restante (ARS)</div><div class="card-value" id="grand-pending">$ 0</div></div>
     </div>
-
-    <div class="actions-bar">
-        <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems</h2>
-        <button class="btn" onclick="openModal()">+ Agregar Ítem</button>
+    <div class="status-bar">
+        <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
+        <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems en USD se detallan en su moneda original</span>
     </div>
-
+    <div id="loading-msg" class="loading">⏳ Conectando con la planilla de Plena Estudio y sincronizando ítems...</div>
     <div class="items-container" id="items-list"></div>
 </div>
-
-<!-- Formulario de carga (Modal) -->
-<div class="modal" id="itemModal">
-    <div class="modal-content">
-        <div class="modal-title">Agregar Nuevo Ítem</div>
-        <div class="form-group"><label>Nombre del Ítem *</label><input type="text" id="form-title" placeholder="Ej: Cerámicos de baño"></div>
-        <div class="form-group"><label>Proveedor *</label><input type="text" id="form-provider" placeholder="Ej: Corralón San Justo"></div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div class="form-group"><label>Precio Base ($) *</label><input type="number" id="form-total" placeholder="0"></div>
-            <div class="form-group"><label>Seña ($)</label><input type="number" id="form-deposit" value="0"></div>
-        </div>
-        <div class="form-group"><label>Costo de Envío ($) (Opcional)</label><input type="number" id="form-shipping" placeholder="Vacío si no aplica"></div>
-        
-        <div class="form-group">
-            <label>Método de Pago Predeterminado</label>
-            <select id="form-method" onchange="toggleFormMethodFields()">
-                <option value="none">Ninguno / A definir</option>
-                <option value="online">Compra Online (Link)</option>
-                <option value="transfer">Transferencia Bancaria</option>
-            </select>
-        </div>
-
-        <div id="form-field-online" class="form-group" style="display:none;"><label>Enlace de Compra Online (Link)</label><input type="url" id="form-link" placeholder="https://..."></div>
-        <div id="form-field-transfer" style="display:none;">
-            <div class="form-group"><label>Banco / Entidad</label><input type="text" id="form-bank" placeholder="Ej: Galicia"></div>
-            <div class="form-group"><label>Alias de la Cuenta</label><input type="text" id="form-alias" placeholder="Ej: CHILL.RAMON.ALBA"></div>
-            <div class="form-group"><label>CBU / CVU</label><input type="text" id="form-cbu" placeholder="22 dígitos"></div>
-        </div>
-
-        <div class="modal-actions">
-            <button class="btn" style="background:#cbd5e1; color:black;" onclick="closeModal()">Cancelar</button>
-            <button class="btn" onclick="saveItem()">Guardar Ítem</button>
-        </div>
-    </div>
-</div>
-
 <script>
-    let items = [
-        {
-            id: 1,
-            title: "Materiales de albañilería",
-            provider: "Corralón San Justo",
-            total: 850000,
-            deposit: 300000,
-            shipping: 25000,
-            paymentMethod: "transfer",
-            link: "",
-            bank: "Banco Galicia - CC",
-            alias: "SAN.JUSTO.CORRALON",
-            cbu: "0070111220000001234567",
-            isDepositPaid: true,
-            isBalancePaid: false
-        },
-        {
-            id: 2,
-            title: "Grifería de Cocina Premium",
-            provider: "Grifería Online S.A.",
-            total: 310000,
-            deposit: 0,
-            shipping: null,
-            paymentMethod: "online",
-            link: "https://www.mercadolibre.com.ar",
-            bank: "", alias: "", cbu: "",
-            isDepositPaid: false,
-            isBalancePaid: false
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/gviz/tq?tqx=out:csv";
+    function copyAlias(aliasText) { navigator.clipboard.writeText(aliasText); alert('¡Alias copiado!: ' + aliasText); }
+    function parseCurrency(valStr) {
+        if (!valStr || valStr.trim() === "" || valStr.includes("No aplica") || valStr.includes("Sin especificar")) return 0;
+        let clean = valStr.replace(/[^0-9,.-]/g, '').trim();
+        if (clean.includes(",") && clean.includes(".")) { clean = clean.replace(/\\./g, '').replace(',', '.'); }
+        else if (clean.includes(",")) { clean = clean.replace(',', '.'); }
+        let num = parseFloat(clean); return isNaN(num) ? 0 : num;
+    }
+    function formatDisplay(valStr, isUsd) {
+        if (!valStr || valStr.trim() === "") return "---";
+        if (valStr.includes("No aplica") || valStr.includes("Sin especificar")) return valStr;
+        let parsed = parseCurrency(valStr); if (parsed === 0) return valStr;
+        return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0 });
+    }
+    function parseCSV(text) {
+        let lines = []; let row = [""]; let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            let c = text[i]; let next = text[i+1];
+            if (c === '"') { if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } else { inQuotes = !inQuotes; } }
+            else if (c === ',' && !inQuotes) { row.push(''); }
+            else if ((c === '\\r' || c === '\\n') && !inQuotes) { if (c === '\\r' && next === '\\n') { i++; } lines.push(row); row = ['']; }
+            else { row[row.length - 1] += c; }
         }
-    ];
-
-    function formatCurrency(num) { return '$ ' + Number(num).toLocaleString('es-AR', { minimumFractionDigits: 0 }); }
-    function copyToClipboard(text) { navigator.clipboard.writeText(text); alert('¡Copiado!: ' + text); }
-    function changeItemMethod(id, method) { const item = items.find(i => i.id === id); if(item) { item.paymentMethod = method; render(); } }
-    
-    function toggleFormMethodFields() {
-        const val = document.getElementById('form-method').value;
-        document.getElementById('form-field-online').style.display = val === 'online' ? 'block' : 'none';
-        document.getElementById('form-field-transfer').style.display = val === 'transfer' ? 'block' : 'none';
+        if (row.length > 1 || row[0] !== '') lines.push(row); return lines;
     }
-
-    function render() {
-        const list = document.getElementById('items-list'); list.innerHTML = '';
-        let gTotal = 0, gPaid = 0;
-
-        items.forEach(item => {
-            const hasShipping = item.shipping !== null && item.shipping !== undefined;
-            const itemTotal = item.total + (hasShipping ? item.shipping : 0);
-            let paid = 0;
-            if (item.isDepositPaid) paid += item.deposit;
-            if (item.isBalancePaid) paid += (item.total - item.deposit) + (hasShipping ? item.shipping : 0);
-            const balance = itemTotal - paid;
-            gTotal += itemTotal; gPaid += paid;
-
-            let statusText = 'Pendiente', statusClass = 'pendiente';
-            if (paid > 0 && paid < itemTotal) { statusText = 'Parcial'; statusClass = 'parcial'; }
-            if (paid >= itemTotal) { statusText = 'Pagado'; statusClass = 'pagado'; }
-
-            const row = document.createElement('div');
-            row.className = 'item-row';
-            row.innerHTML = `
-                <div class="item-header">
-                    <div><div class="item-title">${item.title}</div><div class="item-provider">Proveedor: ${item.provider}</div></div>
-                    <span class="badge ${statusClass}">${statusText}</span>
-                </div>
-                <div class="values-grid">
-                    <div class="val-box"><span class="val-label">Precio Base</span><span class="val-amount">${formatCurrency(item.total)}</span></div>
-                    <div class="val-box"><span class="val-label">Seña</span><span class="val-amount">${formatCurrency(item.deposit)}</span></div>
-                    <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${hasShipping ? formatCurrency(item.shipping) : 'No aplica'}</span></div>
-                    <div class="val-box"><span class="val-label">Total c/ Envío</span><span class="val-amount">${formatCurrency(itemTotal)}</span></div>
-                    <div class="val-box"><span class="val-label">Saldo</span><span class="val-amount" style="color:${balance > 0 ? 'var(--accent-pending)':'var(--accent-paid)'}">${formatCurrency(balance)}</span></div>
-                </div>
-                <div class="payment-method-container">
-                    <div class="method-selector">
-                        <label class="radio-label"><input type="radio" name="m-${item.id}" value="none" ${item.paymentMethod==='none'?'checked':''} onchange="changeItemMethod(${item.id}, 'none')"> Sin especificar</label>
-                        <label class="radio-label"><input type="radio" name="m-${item.id}" value="online" ${item.paymentMethod==='online'?'checked':''} onchange="changeItemMethod(${item.id}, 'online')"> Compra Online</label>
-                        <label class="radio-label"><input type="radio" name="m-${item.id}" value="transfer" ${item.paymentMethod==='transfer'?'checked':''} onchange="changeItemMethod(${item.id}, 'transfer')"> Por Transferencia</label>
+    async function loadSheetData() {
+        try {
+            const response = await fetch(sheetUrl); const csvText = await response.text(); const data = parseCSV(csvText);
+            if (data.length < 2) { document.getElementById('loading-msg').innerText = "Planilla vacía."; return; }
+            const headers = data[0].map(h => h.trim().toLowerCase());
+            const idx = {
+                item: headers.indexOf("ítem"), provider: headers.indexOf("proveedor"), total: headers.indexOf("precio total"),
+                deposit: headers.indexOf("seña"), shipping: headers.indexOf("envío"), method: headers.indexOf("método"),
+                link: headers.indexOf("link"), bank: headers.indexOf("banco"), alias: headers.indexOf("alias"),
+                cbu: headers.indexOf("cbu"), holder: headers.indexOf("titular"), balance: headers.indexOf("saldo"),
+                dateSena: headers.indexOf("fecha de seña/compra"), dateBalance: headers.indexOf("fecha estimada de pago de saldo")
+            };
+            const container = document.getElementById('items-list'); container.innerHTML = '';
+            let totalArs = 0, paidArs = 0, pendingArs = 0;
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i]; if (!row[idx.item] || row[idx.item].trim() === "") continue;
+                const itemText = row[idx.item]; const providerText = row[idx.provider] || "---";
+                const totalRaw = row[idx.total] || ""; const depositRaw = row[idx.deposit] || "";
+                const shippingRaw = row[idx.shipping] || ""; const methodText = row[idx.method] || "---";
+                const linkText = row[idx.link] || ""; const bankText = row[idx.bank] || "";
+                const aliasText = row[idx.alias] || ""; const cbuText = row[idx.cbu] || "";
+                const holderText = row[idx.holder] || ""; const balanceRaw = row[idx.balance] || "";
+                const dateSenaText = row[idx.dateSena] || ""; const dateBalanceText = row[idx.dateBalance] || "";
+                const isUsd = totalRaw.toUpperCase().includes("USD");
+                let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
+                let numShipping = parseCurrency(shippingRaw); let numBalance = parseCurrency(balanceRaw);
+                if (numBalance === 0 && numTotal > 0 && !balanceRaw.includes("No aplica")) { numBalance = numTotal - numDeposit; }
+                let numPaid = (numTotal + numShipping) - numBalance;
+                if (!isUsd) { totalArs += (numTotal + numShipping); paidArs += numPaid; pendingArs += numBalance; }
+                let statusText = "Pendiente", statusClass = "pendiente";
+                if (numPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
+                else if (numPaid > 0 && numBalance === 0 || depositRaw.includes("pago total")) { statusText = "Pagado"; statusClass = "pagado"; }
+                const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
+                cardHtml.innerHTML = `
+                    <div class="item-header">
+                        <div><div class="item-title">${itemText}</div><div class="item-provider">Proveedor: <strong>${providerText}</strong></div></div>
+                        <span class="badge ${statusClass}">${statusText}</span>
                     </div>
-                    <div class="method-content ${item.paymentMethod==='online'?'active':''}">
-                        <div class="online-link-box"><strong>Enlace:</strong> ${item.link ? `<a href="${item.link}" target="_blank">🔗 Ir al link de pago online</a>` : `<span style="color:var(--text-muted);">No se ingresó enlace.</span>`}</div>
+                    <div class="values-grid">
+                        <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${shippingRaw}</span></div>
+                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'var(--accent-paid)'}; font-weight:bold;">${formatDisplay(balanceRaw ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
                     </div>
-                    <div class="method-content ${item.paymentMethod==='transfer'?'active':''}">
-                        <div class="bank-details-box">
-                            <strong>Datos Bancarios:</strong><br>
-                            Banco: ${item.bank || '---'}<br>
-                            Alias: <strong>${item.alias || '---'}</strong> ${item.alias ? `<span class="copy-badge" onclick="copyToClipboard('${item.alias}')">📋 Copiar Alias</span>`:''}<br>
-                            CBU: ${item.cbu || '---'}
-                        </div>
+                    <div class="info-block">
+                        <strong>Modo de compra establecido:</strong> ${methodText}<br>
+                        ${methodText.toLowerCase().includes("online") && linkText && linkText.startsWith("http") ? `<a href="${linkText}" target="_blank" class="online-btn">🛒 Ir al link de compra online</a>` : ''}
+                        ${methodText.toLowerCase().includes("transf") || aliasText ? `
+                            <div class="bank-box">
+                                <strong>Datos de Transferencia:</strong><br>
+                                🏢 Banco: ${bankText || '---'} | 👤 Titular: ${holderText || '---'}<br>
+                                💳 CBU: ${cbuText || '---'}<br>
+                                🔑 Alias: <strong>${aliasText || '---'}</strong> ${aliasText && aliasText !== "No aplica" ? `<button class="copy-btn" onclick="copyAlias('${aliasText}')">📋 Copiar Alias</button>` : ''}
+                            </div>
+                        ` : ''}
                     </div>
-                </div>
-                <div class="footer-controls">
-                    <div class="checkbox-group">
-                        <label class="checkbox-label"><input type="checkbox" ${item.isDepositPaid?'checked':''} onchange="toggleCheck(${item.id}, 'isDepositPaid')"> Seña abonada</label>
-                        <label class="checkbox-label"><input type="checkbox" ${item.isBalancePaid?'checked':''} onchange="toggleCheck(${item.id}, 'isBalancePaid')"> Saldo abonado</label>
-                    </div>
-                    <button class="btn-delete" onclick="removeItem(${item.id})">Eliminar ítem</button>
-                </div>
-            `;
-            list.appendChild(row);
-        });
-        document.getElementById('grand-total').innerText = formatCurrency(gTotal);
-        document.getElementById('grand-paid').innerText = formatCurrency(gPaid);
-        document.getElementById('grand-pending').innerText = formatCurrency(gTotal - gPaid);
+                    ${dateSenaText || dateBalanceText ? `<div class="dates-box">${dateSenaText ? `<span>📅 <strong>Fecha Seña/Compra:</strong> ${dateSenaText}</span>`:''} ${dateBalanceText ? `<span>⏳ <strong>Est. Pago Saldo:</strong> ${dateBalanceText}</span>`:''}</div>` : ''}
+                `; container.appendChild(cardHtml);
+            }
+            document.getElementById('grand-total').innerText = "$ " + totalArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('grand-paid').innerText = "$ " + paidArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('grand-pending').innerText = "$ " + pendingArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('loading-msg').style.display = 'none'; document.getElementById('summary-section').style.display = 'grid';
+        } catch (error) { document.getElementById('loading-msg').innerText = "Error al sincronizar con Google Sheets. Asegurate de que el Excel esté configurado como Público."; }
     }
-
-    function toggleCheck(id, field) { const item = items.find(i => i.id === id); if(item) { item[field] = !item[field]; if(field === 'isBalancePaid' && item.isBalancePaid) item.isDepositPaid = true; render(); } }
-    function removeItem(id) { if(confirm('¿Eliminar ítem?')) { items = items.filter(i => i.id !== id); render(); } }
-    function openModal() { document.getElementById('itemModal').style.display = 'flex'; }
-    
-    function closeModal() { 
-        document.getElementById('itemModal').style.display = 'none';
-        document.getElementById('form-title').value = ''; document.getElementById('form-provider').value = '';
-        document.getElementById('form-total').value = ''; document.getElementById('form-deposit').value = '0';
-        document.getElementById('form-shipping').value = ''; document.getElementById('form-method').value = 'none';
-        document.getElementById('form-link').value = ''; document.getElementById('form-bank').value = '';
-        document.getElementById('form-alias').value = ''; document.getElementById('form-cbu').value = '';
-        toggleFormMethodFields();
-    }
-
-    function saveItem() {
-        const title = document.getElementById('form-title').value.trim();
-        const provider = document.getElementById('form-provider').value.trim();
-        const total = parseFloat(document.getElementById('form-total').value);
-        if(!title || !provider || isNaN(total)) { alert('Completar campos obligatorios'); return; }
-        items.push({
-            id: Date.now(), title, provider, total,
-            deposit: parseFloat(document.getElementById('form-deposit').value) || 0,
-            shipping: document.getElementById('form-shipping').value === '' ? null : parseFloat(document.getElementById('form-shipping').value),
-            paymentMethod: document.getElementById('form-method').value,
-            link: document.getElementById('form-link').value.trim(),
-            bank: document.getElementById('form-bank').value.trim(),
-            alias: document.getElementById('form-alias').value.trim(),
-            cbu: document.getElementById('form-cbu').value.trim(),
-            isDepositPaid: false, isBalancePaid: false
-        });
-        closeModal(); render();
-    }
-    render();
+    window.onload = loadSheetData;
 </script>
 </body>
 </html>
