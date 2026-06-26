@@ -72,7 +72,7 @@
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
-    const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/gviz/tq?tqx=out:csv";
+const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/pub?output=csv&v=" + Date.now();
     function copyAlias(aliasText) { navigator.clipboard.writeText(aliasText); alert('¡Alias copiado!: ' + aliasText); }
     function parseCurrency(valStr) {
         if (!valStr || valStr.trim() === "" || valStr.includes("No aplica") || valStr.includes("Sin especificar")) return 0;
