@@ -49,7 +49,8 @@
         .bank-box { background: white; padding: 12px 16px; border-radius: 6px; border: 1px solid #cbd5e1; margin-top: 6px; line-height: 1.5; }
         .copy-btn { background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-left: 6px; display: inline-block; color: #1e293b; border: none; }
         .copy-btn:hover { background: #cbd5e1; }
-        .online-btn { display: inline-block; background: #2563eb; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; margin-top: 6px; }
+        .online-btn { display: inline-block; background: #2563eb; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; margin-top: 8px; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
+        .online-btn:hover { background: #1d4ed8; }
         .dates-box { display: flex; gap: 20px; font-size: 12px; color: var(--text-muted); margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
     </style>
 </head>
@@ -68,7 +69,7 @@
         <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
         <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems identificados con (USD) se detallan en su moneda original</span>
     </div>
-    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra y ordenando fechas...</div>
+    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra y restableciendo links de compra...</div>
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
@@ -92,6 +93,14 @@
         if (valStr.includes("No aplica") || valStr.includes("Sin especificar")) return valStr;
         let parsed = parseCurrency(valStr); if (parsed === 0) return valStr;
         return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    // Limpiador especial para URLs dentro de celdas con comillas
+    function cleanUrl(urlStr) {
+        if (!urlStr) return "";
+        let clean = urlStr.trim().replace(/^"|"$/g, '');
+        if (clean.toLowerCase().startsWith("http")) return clean;
+        return "";
     }
 
     function parseCSV(text) {
@@ -123,17 +132,16 @@
                 deposit: headers.findIndex(h => h.includes("seña")), 
                 shipping: headers.findIndex(h => h.includes("envío") || h.includes("envio")), 
                 method: headers.findIndex(h => h.includes("método") || h.includes("metodo")),
-                link: headers.findIndex(h => h.includes("link")), 
+                link: data[0].findIndex(h => h.toLowerCase().includes("link") || h.toLowerCase().includes("compra")), // Detector flexible de links
                 bank: headers.findIndex(h => h.includes("banco")), 
                 alias: headers.findIndex(h => h.includes("alias")),
                 cbu: headers.findIndex(h => h.includes("cbu")), 
                 holder: headers.findIndex(h => h.includes("titular")), 
-                balance: headers.findIndex(h => h === "saldo"), // Ajuste exacto para valor numérico
+                balance: headers.findIndex(h => h === "saldo"),
                 dateSena: headers.findIndex(h => h.includes("seña/compra") || h.includes("sena/compra")), 
-                dateBalance: headers.findIndex(h => h.includes("estimada") || h.includes("fechapago")) // Ajuste exacto para la columna de fecha
+                dateBalance: headers.findIndex(h => h.includes("estimada") || h.includes("fechapago"))
             };
 
-            // Corrección de contingencia para la columna fecha estimada
             if(idx.dateBalance === -1 || idx.dateBalance === idx.balance){
                 idx.dateBalance = data[0].findIndex(h => h.toLowerCase().includes("estimada") || h.toLowerCase().includes("pago de saldo"));
             }
@@ -147,10 +155,19 @@
                 const itemText = row[idx.item]; const providerText = row[idx.provider] || "---";
                 const totalRaw = row[idx.total] || ""; const depositRaw = row[idx.deposit] || "";
                 const shippingRaw = row[idx.shipping] || ""; const methodText = row[idx.method] || "---";
-                const linkText = row[idx.link] || ""; const bankText = row[idx.bank] || "";
-                const aliasText = row[idx.alias] || ""; const cbuText = row[idx.cbu] || "";
-                const holderText = row[idx.holder] || "---"; const balanceRaw = row[idx.balance] || "";
-                const dateSenaText = row[idx.dateSena] || ""; const dateBalanceText = row[idx.dateBalance] || "";
+                
+                // Forzar escaneo de la fila para pescar el link de MercadoLibre si falla la columna fija
+                let linkText = idx.link !== -1 ? row[idx.link] : "";
+                if (!linkText || !linkText.trim().toLowerCase().startsWith("http")) {
+                    let foundUrl = row.find(cell => cell && cell.trim().toLowerCase().startsWith("http"));
+                    if (foundUrl) linkText = foundUrl;
+                }
+                linkText = cleanUrl(linkText);
+
+                const bankText = row[idx.bank] || ""; const aliasText = row[idx.alias] || "";
+                const cbuText = row[idx.cbu] || ""; const holderText = row[idx.holder] || "---";
+                const balanceRaw = row[idx.balance] || ""; const dateSenaText = row[idx.dateSena] || "";
+                const dateBalanceText = row[idx.dateBalance] || "";
                 
                 const estadoManualText = headers.findIndex(h => h.includes("estado")) !== -1 ? row[headers.findIndex(h => h.includes("estado"))].trim().toLowerCase() : "";
 
@@ -203,12 +220,12 @@
                     </div>
                     <div class="info-block">
                         <strong>Modo de compra establecido:</strong> ${methodText}<br>
-                        ${methodText.toLowerCase().includes("online") && linkText && linkText.startsWith("http") ? `<a href="${linkText}" target="_blank" class="online-btn">🛒 Ir al link de compra online</a>` : ''}
+                        ${linkText ? `<a href="${linkText}" target="_blank" class="online-btn">🛒 Ir al link de compra online</a>` : ''}
                         ${methodText.toLowerCase().includes("transf") || aliasText ? `
                             <div class="bank-box">
                                 <strong>Datos de Transferencia:</strong><br>
                                 🏢 Banco: ${bankText || '---'} | 👤 Titular: ${holderText}<br>
-                                💳 CBU: ${cbuText || '---'}<br>
+                                    💳 CBU: ${cbuText || '---'}<br>
                                 🔑 Alias: <strong>${aliasText || '---'}</strong> ${aliasText && aliasText !== "No aplica" ? `<button class="copy-btn" onclick="copyAlias('${aliasText}')">📋 Copiar Alias</button>` : ''}
                             </div>
                         ` : ''}
