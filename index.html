@@ -69,7 +69,7 @@
         <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
         <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems identificados con (USD) se detallan en su moneda original</span>
     </div>
-    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra y restableciendo links de compra...</div>
+    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra de forma definitiva...</div>
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
@@ -95,7 +95,6 @@
         return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
 
-    // Limpiador especial para URLs dentro de celdas con comillas
     function cleanUrl(urlStr) {
         if (!urlStr) return "";
         let clean = urlStr.trim().replace(/^"|"$/g, '');
@@ -109,137 +108,4 @@
             let c = text[i]; let next = text[i+1];
             if (c === '"') { if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } else { inQuotes = !inQuotes; } }
             else if (c === ',' && !inQuotes) { row.push(''); }
-            else if ((c === '\r' || c === '\n') && !inQuotes) { if (c === '\r' && next === '\n') { i++; } lines.push(row); row = ['']; }
-            else { row[row.length - 1] += c; }
-        }
-        if (row.length > 1 || row[0] !== '') lines.push(row); return lines;
-    }
-
-    async function loadSheetData() {
-        try {
-            const response = await fetch(sheetUrl); 
-            const csvText = await response.text(); 
-            const data = parseCSV(csvText);
-            
-            if (data.length < 2) { document.getElementById('loading-msg').innerText = "Planilla vacía."; return; }
-            
-            const headers = data[0].map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
-            
-            const idx = {
-                item: headers.findIndex(h => h.includes("ítem") || h.includes("item")),
-                provider: headers.findIndex(h => h.includes("proveedor")), 
-                total: headers.findIndex(h => h.includes("total")),
-                deposit: headers.findIndex(h => h.includes("seña")), 
-                shipping: headers.findIndex(h => h.includes("envío") || h.includes("envio")), 
-                method: headers.findIndex(h => h.includes("método") || h.includes("metodo")),
-                link: data[0].findIndex(h => h.toLowerCase().includes("link") || h.toLowerCase().includes("compra")), // Detector flexible de links
-                bank: headers.findIndex(h => h.includes("banco")), 
-                alias: headers.findIndex(h => h.includes("alias")),
-                cbu: headers.findIndex(h => h.includes("cbu")), 
-                holder: headers.findIndex(h => h.includes("titular")), 
-                balance: headers.findIndex(h => h === "saldo"),
-                dateSena: headers.findIndex(h => h.includes("seña/compra") || h.includes("sena/compra")), 
-                dateBalance: headers.findIndex(h => h.includes("estimada") || h.includes("fechapago"))
-            };
-
-            if(idx.dateBalance === -1 || idx.dateBalance === idx.balance){
-                idx.dateBalance = data[0].findIndex(h => h.toLowerCase().includes("estimada") || h.toLowerCase().includes("pago de saldo"));
-            }
-
-            const container = document.getElementById('items-list'); container.innerHTML = '';
-            let totalArs = 0, paidArs = 0, pendingArs = 0;
-
-            for (let i = 1; i < data.length; i++) {
-                const row = data[i]; if (!row[idx.item] || row[idx.item].trim() === "") continue;
-                
-                const itemText = row[idx.item]; const providerText = row[idx.provider] || "---";
-                const totalRaw = row[idx.total] || ""; const depositRaw = row[idx.deposit] || "";
-                const shippingRaw = row[idx.shipping] || ""; const methodText = row[idx.method] || "---";
-                
-                // Forzar escaneo de la fila para pescar el link de MercadoLibre si falla la columna fija
-                let linkText = idx.link !== -1 ? row[idx.link] : "";
-                if (!linkText || !linkText.trim().toLowerCase().startsWith("http")) {
-                    let foundUrl = row.find(cell => cell && cell.trim().toLowerCase().startsWith("http"));
-                    if (foundUrl) linkText = foundUrl;
-                }
-                linkText = cleanUrl(linkText);
-
-                const bankText = row[idx.bank] || ""; const aliasText = row[idx.alias] || "";
-                const cbuText = row[idx.cbu] || ""; const holderText = row[idx.holder] || "---";
-                const balanceRaw = row[idx.balance] || ""; const dateSenaText = row[idx.dateSena] || "";
-                const dateBalanceText = row[idx.dateBalance] || "";
-                
-                const estadoManualText = headers.findIndex(h => h.includes("estado")) !== -1 ? row[headers.findIndex(h => h.includes("estado"))].trim().toLowerCase() : "";
-
-                const isUsd = itemText.toUpperCase().includes("USD");
-                
-                let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
-                let numShipping = parseCurrency(shippingRaw); let numBalance = parseCurrency(balanceRaw);
-                
-                if (numBalance === 0 && numTotal > 0 && !balanceRaw.includes("0") && !balanceRaw.includes("No aplica")) { 
-                    numBalance = (numTotal + numShipping) - numDeposit; 
-                }
-
-                let numPaid = 0;
-                let statusText = "Pendiente";
-                let statusClass = "pendiente";
-
-                if (estadoManualText !== "") {
-                    if (estadoManualText.includes("pend") || estadoManualText.includes("espera")) {
-                        statusText = "Pendiente"; statusClass = "pendiente";
-                        numPaid = 0;
-                        numBalance = numTotal + numShipping;
-                    } else if (estadoManualText.includes("pagad") || estadoManualText.includes("listo")) {
-                        statusText = "Pagado"; statusClass = "pagado";
-                        numPaid = numTotal + numShipping;
-                        numBalance = 0;
-                    } else if (estadoManualText.includes("parcial") || estadoManualText.includes("seña") || estadoManualText.includes("sena")) {
-                        statusText = "Parcial"; statusClass = "parcial";
-                        numPaid = numDeposit;
-                        numBalance = (numTotal + numShipping) - numDeposit;
-                    }
-                } else {
-                    numPaid = (numTotal + numShipping) - numBalance;
-                    if (numPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
-                    else if (numPaid > 0 && numBalance <= 0) { statusText = "Pagado"; statusClass = "pagado"; }
-                }
-
-                if (!isUsd) { totalArs += (numTotal + numShipping); paidArs += numPaid; pendingArs += numBalance; }
-
-                const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
-                cardHtml.innerHTML = `
-                    <div class="item-header">
-                        <div><div class="item-title">${itemText}</div><div class="item-provider">Proveedor: <strong>${providerText}</strong></div></div>
-                        <span class="badge ${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="values-grid">
-                        <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${formatDisplay(shippingRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'var(--accent-paid)'}; font-weight:bold;">${formatDisplay(numBalance.toString(), isUsd)}</span></div>
-                    </div>
-                    <div class="info-block">
-                        <strong>Modo de compra establecido:</strong> ${methodText}<br>
-                        ${linkText ? `<a href="${linkText}" target="_blank" class="online-btn">🛒 Ir al link de compra online</a>` : ''}
-                        ${methodText.toLowerCase().includes("transf") || aliasText ? `
-                            <div class="bank-box">
-                                <strong>Datos de Transferencia:</strong><br>
-                                🏢 Banco: ${bankText || '---'} | 👤 Titular: ${holderText}<br>
-                                    💳 CBU: ${cbuText || '---'}<br>
-                                🔑 Alias: <strong>${aliasText || '---'}</strong> ${aliasText && aliasText !== "No aplica" ? `<button class="copy-btn" onclick="copyAlias('${aliasText}')">📋 Copiar Alias</button>` : ''}
-                            </div>
-                        ` : ''}
-                    </div>
-                    ${dateSenaText || dateBalanceText ? `<div class="dates-box">${dateSenaText ? `<span>📅 <strong>Fecha Seña/Compra:</strong> ${dateSenaText}</span>`:''} ${dateBalanceText && dateBalanceText !== balanceRaw ? `<span>⏳ <strong>Est. Pago Saldo:</strong> ${dateBalanceText}</span>`:''}</div>` : ''}
-                `; container.appendChild(cardHtml);
-            }
-            document.getElementById('grand-total').innerText = "$ " + totalArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-            document.getElementById('grand-paid').innerText = "$ " + paidArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-            document.getElementById('grand-pending').innerText = "$ " + pendingArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
-            document.getElementById('loading-msg').style.display = 'none'; document.getElementById('summary-section').style.display = 'grid';
-        } catch (error) { document.getElementById('loading-msg').innerText = "Error de sincronización."; }
-    }
-    window.onload = loadSheetData;
-</script>
-</body>
-</html>
+            else if ((c === '\r' || c === '\n') && !inQuotes) { if (c === '\r' &&
