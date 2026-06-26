@@ -68,7 +68,7 @@
         <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
         <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems identificados con (USD) se detallan en su moneda original</span>
     </div>
-    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra con control manual absoluto...</div>
+    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra y ordenando fechas...</div>
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
@@ -114,7 +114,6 @@
             
             if (data.length < 2) { document.getElementById('loading-msg').innerText = "Planilla vacía."; return; }
             
-            // Buscador flexible reforzado: Limpia espacios invisibles de los encabezados
             const headers = data[0].map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
             
             const idx = {
@@ -129,11 +128,15 @@
                 alias: headers.findIndex(h => h.includes("alias")),
                 cbu: headers.findIndex(h => h.includes("cbu")), 
                 holder: headers.findIndex(h => h.includes("titular")), 
-                balance: headers.findIndex(h => h.includes("saldo")),
+                balance: headers.findIndex(h => h === "saldo"), // Ajuste exacto para valor numérico
                 dateSena: headers.findIndex(h => h.includes("seña/compra") || h.includes("sena/compra")), 
-                dateBalance: headers.findIndex(h => h.includes("saldo")),
-                estadoManual: headers.findIndex(h => h.includes("estado"))
+                dateBalance: headers.findIndex(h => h.includes("estimada") || h.includes("fechapago")) // Ajuste exacto para la columna de fecha
             };
+
+            // Corrección de contingencia para la columna fecha estimada
+            if(idx.dateBalance === -1 || idx.dateBalance === idx.balance){
+                idx.dateBalance = data[0].findIndex(h => h.toLowerCase().includes("estimada") || h.toLowerCase().includes("pago de saldo"));
+            }
 
             const container = document.getElementById('items-list'); container.innerHTML = '';
             let totalArs = 0, paidArs = 0, pendingArs = 0;
@@ -149,7 +152,7 @@
                 const holderText = row[idx.holder] || "---"; const balanceRaw = row[idx.balance] || "";
                 const dateSenaText = row[idx.dateSena] || ""; const dateBalanceText = row[idx.dateBalance] || "";
                 
-                const estadoManualText = idx.estadoManual !== -1 && row[idx.estadoManual] ? row[idx.estadoManual].trim().toLowerCase() : "";
+                const estadoManualText = headers.findIndex(h => h.includes("estado")) !== -1 ? row[headers.findIndex(h => h.includes("estado"))].trim().toLowerCase() : "";
 
                 const isUsd = itemText.toUpperCase().includes("USD");
                 
@@ -164,7 +167,6 @@
                 let statusText = "Pendiente";
                 let statusClass = "pendiente";
 
-                // DETECTOR ULTRA PRIORITARIO DEL TEXTO MANUAL
                 if (estadoManualText !== "") {
                     if (estadoManualText.includes("pend") || estadoManualText.includes("espera")) {
                         statusText = "Pendiente"; statusClass = "pendiente";
@@ -211,7 +213,7 @@
                             </div>
                         ` : ''}
                     </div>
-                    ${dateSenaText || dateBalanceText ? `<div class="dates-box">${dateSenaText ? `<span>📅 <strong>Fecha Seña/Compra:</strong> ${dateSenaText}</span>`:''} ${dateBalanceText ? `<span>⏳ <strong>Est. Pago Saldo:</strong> ${dateBalanceText}</span>`:''}</div>` : ''}
+                    ${dateSenaText || dateBalanceText ? `<div class="dates-box">${dateSenaText ? `<span>📅 <strong>Fecha Seña/Compra:</strong> ${dateSenaText}</span>`:''} ${dateBalanceText && dateBalanceText !== balanceRaw ? `<span>⏳ <strong>Est. Pago Saldo:</strong> ${dateBalanceText}</span>`:''}</div>` : ''}
                 `; container.appendChild(cardHtml);
             }
             document.getElementById('grand-total').innerText = "$ " + totalArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
