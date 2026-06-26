@@ -68,7 +68,7 @@
         <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
         <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems identificados con (USD) se detallan en su moneda original</span>
     </div>
-    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra con soporte para fórmulas e ítems USD...</div>
+    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra y limpiando formatos...</div>
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
@@ -77,9 +77,20 @@
     
     function parseCurrency(valStr) {
         if (!valStr || valStr.trim() === "" || valStr.includes("No aplica") || valStr.includes("Sin especificar")) return 0;
-        let clean = valStr.replace(/[^0-9,.-]/g, '').trim();
-        if (clean.includes(",") && clean.includes(".")) { clean = clean.replace(/\./g, '').replace(',', '.'); }
-        else if (clean.includes(",")) { clean = clean.replace(',', '.'); }
+        // Limpiador reforzado: Quita el signo de pesos y espacios
+        let clean = valStr.replace(/\$/g, '').trim();
+        
+        // Si el número viene con formato argentino de miles con punto y decimal con coma (ej: 1.330.000,00 o 1.330.000)
+        if (clean.includes(".") && (clean.includes(",") || clean.split('.').length > 2)) {
+            clean = clean.replace(/\./g, '').replace(',', '.');
+        } else if (clean.includes(",")) {
+            // Si solo tiene coma como separador de miles
+            if (clean.split(',').length > 2 || (clean.includes(".") && clean.indexOf(",") < clean.indexOf("."))) {
+                clean = clean.replace(/,/g, '');
+            } else {
+                clean = clean.replace(',', '.');
+            }
+        }
         let num = parseFloat(clean); return isNaN(num) ? 0 : num;
     }
 
@@ -136,7 +147,6 @@
                 const dateSenaText = row[idx.dateSena] || ""; const dateBalanceText = row[idx.dateBalance] || "";
                 const estadoManualText = idx.estadoManual !== -1 ? (row[idx.estadoManual] || "").trim().toLowerCase() : "";
 
-                // DETECTOR DE DÓLARES: Se activa si el nombre del Ítem incluye "(USD)"
                 const isUsd = itemText.toUpperCase().includes("USD");
                 
                 let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
@@ -167,7 +177,7 @@
                     </div>
                     <div class="values-grid">
                         <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${formatDisplay(shippingRaw, isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${shippingRaw}</span></div>
                         <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'var(--accent-paid)'}; font-weight:bold;">${formatDisplay(balanceRaw ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
                     </div>
