@@ -66,14 +66,13 @@
     </div>
     <div class="status-bar">
         <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
-        <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems en USD se detallan en su moneda original</span>
+        <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems identificados con (USD) se detallan en su moneda original</span>
     </div>
-    <div id="loading-msg" class="loading">⏳ Conectando con la planilla de Plena Estudio y sincronizando ítems...</div>
+    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra con soporte para fórmulas e ítems USD...</div>
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
-const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/export?format=csv&cachebust=" + Date.now();
-
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/export?format=csv&cachebust=" + Date.now();
     function copyAlias(aliasText) { navigator.clipboard.writeText(aliasText); alert('¡Alias copiado!: ' + aliasText); }
     
     function parseCurrency(valStr) {
@@ -106,7 +105,6 @@ const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJy
     async function loadSheetData() {
         try {
             const response = await fetch(sheetUrl); 
-            if (!response.ok) throw new Error("Google rechazó la descarga directa.");
             const csvText = await response.text(); 
             const data = parseCSV(csvText);
             
@@ -119,7 +117,8 @@ const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJy
                 deposit: headers.indexOf("seña"), shipping: headers.indexOf("envío"), method: headers.indexOf("método"),
                 link: headers.indexOf("link"), bank: headers.indexOf("banco"), alias: headers.indexOf("alias"),
                 cbu: headers.indexOf("cbu"), holder: headers.indexOf("titular"), balance: headers.indexOf("saldo"),
-                dateSena: headers.indexOf("fecha de seña/compra"), dateBalance: headers.indexOf("fecha estimada de pago de saldo")
+                dateSena: headers.indexOf("fecha de seña/compra"), dateBalance: headers.indexOf("fecha estimada de pago de saldo"),
+                estadoManual: headers.indexOf("estado")
             };
 
             const container = document.getElementById('items-list'); container.innerHTML = '';
@@ -135,19 +134,30 @@ const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJy
                 const aliasText = row[idx.alias] || ""; const cbuText = row[idx.cbu] || "";
                 const holderText = row[idx.holder] || "---"; const balanceRaw = row[idx.balance] || "";
                 const dateSenaText = row[idx.dateSena] || ""; const dateBalanceText = row[idx.dateBalance] || "";
+                const estadoManualText = idx.estadoManual !== -1 ? (row[idx.estadoManual] || "").trim().toLowerCase() : "";
 
-                const isUsd = totalRaw.toUpperCase().includes("USD");
+                // DETECTOR DE DÓLARES: Se activa si el nombre del Ítem incluye "(USD)"
+                const isUsd = itemText.toUpperCase().includes("USD");
+                
                 let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
                 let numShipping = parseCurrency(shippingRaw); let numBalance = parseCurrency(balanceRaw);
                 
-                if (numBalance === 0 && numTotal > 0 && !balanceRaw.includes("No aplica")) { numBalance = numTotal - numDeposit; }
+                if (numBalance === 0 && numTotal > 0 && !balanceRaw.includes("0") && !balanceRaw.includes("No aplica")) { 
+                    numBalance = (numTotal + numShipping) - numDeposit; 
+                }
                 let numPaid = (numTotal + numShipping) - numBalance;
 
                 if (!isUsd) { totalArs += (numTotal + numShipping); paidArs += numPaid; pendingArs += numBalance; }
 
                 let statusText = "Pendiente", statusClass = "pendiente";
-                if (numPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
-                else if (numPaid > 0 && numBalance === 0 || depositRaw.toLowerCase().includes("total") || balanceRaw.includes("0")) { statusText = "Pagado"; statusClass = "pagado"; }
+                if (estadoManualText !== "") {
+                    if (estadoManualText.includes("pagad")) { statusText = "Pagado"; statusClass = "pagado"; }
+                    else if (estadoManualText.includes("parcial") || estadoManualText.includes("seña")) { statusText = "Parcial"; statusClass = "parcial"; }
+                    else { statusText = "Pendiente"; statusClass = "pendiente"; }
+                } else {
+                    if (numPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
+                    else if (numPaid > 0 && numBalance <= 0) { statusText = "Pagado"; statusClass = "pagado"; }
+                }
 
                 const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
                 cardHtml.innerHTML = `
@@ -157,8 +167,8 @@ const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJy
                     </div>
                     <div class="values-grid">
                         <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${formatDisplay(shippingRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${shippingRaw}</span></div>
                         <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'var(--accent-paid)'}; font-weight:bold;">${formatDisplay(balanceRaw ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
                     </div>
                     <div class="info-block">
@@ -180,13 +190,7 @@ const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJy
             document.getElementById('grand-paid').innerText = "$ " + paidArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('grand-pending').innerText = "$ " + pendingArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('loading-msg').style.display = 'none'; document.getElementById('summary-section').style.display = 'grid';
-        } catch (error) { 
-            // Fallback dinámico usando la ruta alternativa segura
-            const altUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/pub?output=csv";
-            const response = await fetch(altUrl); const csvText = await response.text();
-            if (csvText) { document.getElementById('loading-msg').style.display = 'none'; window.location.reload(); }
-            else { document.getElementById('loading-msg').innerText = "Por favor, verificá que el Google Sheets esté publicado en formato CSV."; }
-        }
+        } catch (error) { document.getElementById('loading-msg').innerText = "Error de sincronización."; }
     }
     window.onload = loadSheetData;
 </script>
