@@ -69,7 +69,7 @@
         <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
         <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems identificados con (USD) se detallan en su moneda original</span>
     </div>
-    <div id="loading-msg" class="loading">⏳ Sincronizando datos de obra de forma definitiva...</div>
+    <div id="loading-msg" class="loading">⏳ Sincronizando con Planilla de Obra...</div>
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
@@ -108,4 +108,104 @@
             let c = text[i]; let next = text[i+1];
             if (c === '"') { if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } else { inQuotes = !inQuotes; } }
             else if (c === ',' && !inQuotes) { row.push(''); }
-            else if ((c === '\r' || c === '\n') && !inQuotes) { if (c === '\r' &&
+            else if ((c === '\r' || c === '\n') && !inQuotes) { if (c === '\r' && next === '\n') { i++; } lines.push(row); row = ['']; }
+            else { row[row.length - 1] += c; }
+        }
+        if (row.length > 1 || row[0] !== '') lines.push(row); return lines;
+    }
+
+    async function loadSheetData() {
+        try {
+            const response = await fetch(sheetUrl); 
+            const csvText = await response.text(); 
+            const data = parseCSV(csvText);
+            
+            if (data.length < 2) { document.getElementById('loading-msg').innerText = "Planilla vacía."; return; }
+            
+            const rawHeaders = data[0].map(h => h.trim().toLowerCase());
+            const cleanHeaders = data[0].map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
+            
+            // Índices validados directamente contra los encabezados de tu Sheets
+            const idx = {
+                item: cleanHeaders.findIndex(h => h.includes("ítem") || h.includes("item")),
+                provider: cleanHeaders.findIndex(h => h.includes("proveedor")), 
+                total: cleanHeaders.findIndex(h => h.includes("total")),
+                deposit: cleanHeaders.findIndex(h => h.includes("seña")), 
+                shipping: cleanHeaders.findIndex(h => h.includes("envío") || h.includes("envio")), 
+                method: cleanHeaders.findIndex(h => h.includes("método") || h.includes("metodo")),
+                link: rawHeaders.findIndex(h => h.includes("link") || h.includes("compra")),
+                bank: cleanHeaders.findIndex(h => h.includes("banco")), 
+                alias: cleanHeaders.findIndex(h => h.includes("alias")),
+                cbu: cleanHeaders.findIndex(h => h.includes("cbu")), 
+                holder: cleanHeaders.findIndex(h => h.includes("titular")), 
+                balance: rawHeaders.findIndex(h => h.includes("saldo pendiente")), // Nombre exacto corregido
+                dateSena: rawHeaders.findIndex(h => h.includes("fecha de seña") || h.includes("sena/compra")), 
+                dateBalance: rawHeaders.findIndex(h => h.includes("fecha estimada de pago de saldo")), // Nombre exacto corregido
+                estadoManual: cleanHeaders.findIndex(h => h.includes("estado"))
+            };
+
+            const container = document.getElementById('items-list'); container.innerHTML = '';
+            let totalArs = 0, paidArs = 0, pendingArs = 0;
+
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i]; if (!row[idx.item] || row[idx.item].trim() === "") continue;
+                
+                const itemText = row[idx.item]; const providerText = row[idx.provider] || "---";
+                const totalRaw = row[idx.total] || ""; const depositRaw = row[idx.deposit] || "";
+                const shippingRaw = row[idx.shipping] || ""; const methodText = row[idx.method] || "---";
+                
+                let linkText = idx.link !== -1 ? row[idx.link] : "";
+                if (!linkText || !linkText.trim().toLowerCase().startsWith("http")) {
+                    let foundUrl = row.find(cell => cell && cell.trim().toLowerCase().startsWith("http"));
+                    if (foundUrl) linkText = foundUrl;
+                }
+                linkText = cleanUrl(linkText);
+
+                const bankText = row[idx.bank] || ""; const aliasText = row[idx.alias] || "";
+                const cbuText = row[idx.cbu] || ""; const holderText = row[idx.holder] || "---";
+                const balanceRaw = idx.balance !== -1 ? row[idx.balance] : ""; 
+                const dateSenaText = idx.dateSena !== -1 ? row[idx.dateSena] : ""; 
+                const dateBalanceText = idx.dateBalance !== -1 ? row[idx.dateBalance] : "";
+                
+                const estadoManualText = idx.estadoManual !== -1 ? row[idx.estadoManual].trim().toLowerCase() : "";
+
+                const isUsd = itemText.toUpperCase().includes("USD");
+                
+                let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
+                let numShipping = parseCurrency(shippingRaw); let numBalance = parseCurrency(balanceRaw);
+                
+                if (numBalance === 0 && numTotal > 0 && !balanceRaw.includes("0") && !balanceRaw.includes("No aplica")) { 
+                    numBalance = (numTotal + numShipping) - numDeposit; 
+                }
+
+                let numPaid = 0;
+                let statusText = "Pendiente";
+                let statusClass = "pendiente";
+
+                if (estadoManualText !== "") {
+                    if (estadoManualText.includes("pend") || estadoManualText.includes("espera")) {
+                        statusText = "Pendiente"; statusClass = "pendiente";
+                        numPaid = 0;
+                        numBalance = numTotal + numShipping;
+                    } else if (estadoManualText.includes("pagad") || estadoManualText.includes("listo")) {
+                        statusText = "Pagado"; statusClass = "pagado";
+                        numPaid = numTotal + numShipping;
+                        numBalance = 0;
+                    } else if (estadoManualText.includes("parcial") || estadoManualText.includes("seña") || estadoManualText.includes("sena")) {
+                        statusText = "Parcial"; statusClass = "parcial";
+                        numPaid = numDeposit;
+                        numBalance = (numTotal + numShipping) - numDeposit;
+                    }
+                } else {
+                    numPaid = (numTotal + numShipping) - numBalance;
+                    if (numPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
+                    else if (numPaid > 0 && numBalance <= 0) { statusText = "Pagado"; statusClass = "pagado"; }
+                }
+
+                if (!isUsd) { totalArs += (numTotal + numShipping); paidArs += numPaid; pendingArs += numBalance; }
+
+                const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
+                cardHtml.innerHTML = `
+                    <div class="item-header">
+                        <div><div class="item-title">${itemText}</div><div class="item-provider">Proveedor: <strong>${providerText}</strong></div></div>
+                        <span class="badge ${
