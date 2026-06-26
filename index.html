@@ -68,7 +68,7 @@
         <h2 style="font-size: 18px; font-weight: 600;">Compras e Ítems de la Obra</h2>
         <span style="font-size:12px; color:var(--text-muted); font-weight:bold;">* Ítems identificados con (USD) se detallan en su moneda original</span>
     </div>
-    <div id="loading-msg" class="loading">⏳ Cargando con control de estado manual absoluto...</div>
+    <div id="loading-msg" class="loading">⏳ Cargando con control manual absoluto de estados...</div>
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
@@ -149,15 +149,15 @@
                     numBalance = (numTotal + numShipping) - numDeposit; 
                 }
 
-                // NUEVA LÓGICA DE ABONADO CONDICIONAL: Si el estado manual es "pendiente", lo abonado para ese ítem es 0.
                 let numPaid = 0;
                 let statusText = "Pendiente", statusClass = "pendiente";
 
+                // PRIORIDAD MANUAL COMPLETA: Si escribiste un estado, se aplica a ciegas y calcula en base a eso
                 if (estadoManualText !== "") {
                     if (estadoManualText.includes("pend") || estadoManualText.includes("espera")) {
                         statusText = "Pendiente"; statusClass = "pendiente";
-                        numPaid = 0; // No se efectuó ningún pago aún
-                        numBalance = numTotal + numShipping; // Todo el monto sigue pendiente
+                        numPaid = 0;
+                        numBalance = numTotal + numShipping;
                     } else if (estadoManualText.includes("pagad") || estadoManualText.includes("listo")) {
                         statusText = "Pagado"; statusClass = "pagado";
                         numPaid = numTotal + numShipping;
@@ -168,7 +168,7 @@
                         numBalance = (numTotal + numShipping) - numDeposit;
                     }
                 } else {
-                    // Fallback automático por si se olvidan de completar la celda de Estado
+                    // Fallback automático inteligente
                     numPaid = (numTotal + numShipping) - numBalance;
                     if (numPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
                     else if (numPaid > 0 && numBalance <= 0) { statusText = "Pagado"; statusClass = "pagado"; }
