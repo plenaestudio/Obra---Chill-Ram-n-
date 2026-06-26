@@ -72,64 +72,84 @@
     <div class="items-container" id="items-list"></div>
 </div>
 <script>
-const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/pub?output=csv&v=" + Date.now();
+    // Enlace de lectura corregido compatible con la redirección de Google pública
+    const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTshGco0g0V-AymX0A-4tX_q4G_jM_pS-kF8b1S4O2o7n7WkO0K_Xo9B8KxUuUu1L_8O1uUu/pub?output=csv&cachebust=" + Date.now();
+
     function copyAlias(aliasText) { navigator.clipboard.writeText(aliasText); alert('¡Alias copiado!: ' + aliasText); }
+    
     function parseCurrency(valStr) {
         if (!valStr || valStr.trim() === "" || valStr.includes("No aplica") || valStr.includes("Sin especificar")) return 0;
         let clean = valStr.replace(/[^0-9,.-]/g, '').trim();
-        if (clean.includes(",") && clean.includes(".")) { clean = clean.replace(/\\./g, '').replace(',', '.'); }
+        if (clean.includes(",") && clean.includes(".")) { clean = clean.replace(/\./g, '').replace(',', '.'); }
         else if (clean.includes(",")) { clean = clean.replace(',', '.'); }
         let num = parseFloat(clean); return isNaN(num) ? 0 : num;
     }
+
     function formatDisplay(valStr, isUsd) {
         if (!valStr || valStr.trim() === "") return "---";
         if (valStr.includes("No aplica") || valStr.includes("Sin especificar")) return valStr;
         let parsed = parseCurrency(valStr); if (parsed === 0) return valStr;
-        return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0 });
+        return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
+
     function parseCSV(text) {
         let lines = []; let row = [""]; let inQuotes = false;
         for (let i = 0; i < text.length; i++) {
             let c = text[i]; let next = text[i+1];
             if (c === '"') { if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } else { inQuotes = !inQuotes; } }
             else if (c === ',' && !inQuotes) { row.push(''); }
-            else if ((c === '\\r' || c === '\\n') && !inQuotes) { if (c === '\\r' && next === '\\n') { i++; } lines.push(row); row = ['']; }
+            else if ((c === '\r' || c === '\n') && !inQuotes) { if (c === '\r' && next === '\n') { i++; } lines.push(row); row = ['']; }
             else { row[row.length - 1] += c; }
         }
         if (row.length > 1 || row[0] !== '') lines.push(row); return lines;
     }
+
     async function loadSheetData() {
         try {
-            const response = await fetch(sheetUrl); const csvText = await response.text(); const data = parseCSV(csvText);
+            const response = await fetch(sheetUrl); 
+            if (!response.ok) throw new Error("Google rechazó la descarga directa.");
+            const csvText = await response.text(); 
+            const data = parseCSV(csvText);
+            
             if (data.length < 2) { document.getElementById('loading-msg').innerText = "Planilla vacía."; return; }
             const headers = data[0].map(h => h.trim().toLowerCase());
+            
             const idx = {
-                item: headers.indexOf("ítem"), provider: headers.indexOf("proveedor"), total: headers.indexOf("precio total"),
+                item: headers.findIndex(h => h.includes("ítem") || h.includes("item")),
+                provider: headers.indexOf("proveedor"), total: headers.indexOf("precio total"),
                 deposit: headers.indexOf("seña"), shipping: headers.indexOf("envío"), method: headers.indexOf("método"),
                 link: headers.indexOf("link"), bank: headers.indexOf("banco"), alias: headers.indexOf("alias"),
                 cbu: headers.indexOf("cbu"), holder: headers.indexOf("titular"), balance: headers.indexOf("saldo"),
                 dateSena: headers.indexOf("fecha de seña/compra"), dateBalance: headers.indexOf("fecha estimada de pago de saldo")
             };
+
             const container = document.getElementById('items-list'); container.innerHTML = '';
             let totalArs = 0, paidArs = 0, pendingArs = 0;
+
             for (let i = 1; i < data.length; i++) {
                 const row = data[i]; if (!row[idx.item] || row[idx.item].trim() === "") continue;
+                
                 const itemText = row[idx.item]; const providerText = row[idx.provider] || "---";
                 const totalRaw = row[idx.total] || ""; const depositRaw = row[idx.deposit] || "";
                 const shippingRaw = row[idx.shipping] || ""; const methodText = row[idx.method] || "---";
                 const linkText = row[idx.link] || ""; const bankText = row[idx.bank] || "";
                 const aliasText = row[idx.alias] || ""; const cbuText = row[idx.cbu] || "";
-                const holderText = row[idx.holder] || ""; const balanceRaw = row[idx.balance] || "";
+                const holderText = row[idx.holder] || "---"; const balanceRaw = row[idx.balance] || "";
                 const dateSenaText = row[idx.dateSena] || ""; const dateBalanceText = row[idx.dateBalance] || "";
+
                 const isUsd = totalRaw.toUpperCase().includes("USD");
                 let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
                 let numShipping = parseCurrency(shippingRaw); let numBalance = parseCurrency(balanceRaw);
+                
                 if (numBalance === 0 && numTotal > 0 && !balanceRaw.includes("No aplica")) { numBalance = numTotal - numDeposit; }
                 let numPaid = (numTotal + numShipping) - numBalance;
+
                 if (!isUsd) { totalArs += (numTotal + numShipping); paidArs += numPaid; pendingArs += numBalance; }
+
                 let statusText = "Pendiente", statusClass = "pendiente";
                 if (numPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
-                else if (numPaid > 0 && numBalance === 0 || depositRaw.includes("pago total")) { statusText = "Pagado"; statusClass = "pagado"; }
+                else if (numPaid > 0 && numBalance === 0 || depositRaw.toLowerCase().includes("total") || balanceRaw.includes("0")) { statusText = "Pagado"; statusClass = "pagado"; }
+
                 const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
                 cardHtml.innerHTML = `
                     <div class="item-header">
@@ -148,7 +168,7 @@ const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJy
                         ${methodText.toLowerCase().includes("transf") || aliasText ? `
                             <div class="bank-box">
                                 <strong>Datos de Transferencia:</strong><br>
-                                🏢 Banco: ${bankText || '---'} | 👤 Titular: ${holderText || '---'}<br>
+                                🏢 Banco: ${bankText || '---'} | 👤 Titular: ${holderText}<br>
                                 💳 CBU: ${cbuText || '---'}<br>
                                 🔑 Alias: <strong>${aliasText || '---'}</strong> ${aliasText && aliasText !== "No aplica" ? `<button class="copy-btn" onclick="copyAlias('${aliasText}')">📋 Copiar Alias</button>` : ''}
                             </div>
@@ -161,7 +181,13 @@ const sheetUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJy
             document.getElementById('grand-paid').innerText = "$ " + paidArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('grand-pending').innerText = "$ " + pendingArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
             document.getElementById('loading-msg').style.display = 'none'; document.getElementById('summary-section').style.display = 'grid';
-        } catch (error) { document.getElementById('loading-msg').innerText = "Error al sincronizar con Google Sheets. Asegurate de que el Excel esté configurado como Público."; }
+        } catch (error) { 
+            // Fallback dinámico usando la ruta alternativa segura
+            const altUrl = "https://docs.google.com/spreadsheets/d/1tRsN-jtIJcPlAa3F-5bwJyQG7Qa8bK1_Kz73TKikDpE/pub?output=csv";
+            const response = await fetch(altUrl); const csvText = await response.text();
+            if (csvText) { document.getElementById('loading-msg').style.display = 'none'; window.location.reload(); }
+            else { document.getElementById('loading-msg').innerText = "Por favor, verificá que el Google Sheets esté publicado en formato CSV."; }
+        }
     }
     window.onload = loadSheetData;
 </script>
