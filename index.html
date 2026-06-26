@@ -81,4 +81,31 @@
         let clean = valStr.replace(/\$/g, '').replace(/\s/g, '').trim();
         if (clean.includes('.') && !clean.includes(',')) {
             let parts = clean.split('.');
-            if (parts.length > 2 || parts[parts.length - 1].length === 3) { clean = clean.
+            if (parts.length > 2 || parts[parts.length - 1].length === 3) { clean = clean.replace(/\./g, ''); }
+        } else if (clean.includes('.') && clean.includes(',')) {
+            clean = clean.replace(/\./g, '').replace(',', '.');
+        } else if (clean.includes(',')) { clean = clean.replace(',', '.'); }
+        let num = parseFloat(clean); return isNaN(num) ? 0 : num;
+    }
+
+    function formatDisplay(valStr, isUsd) {
+        if (!valStr || valStr.trim() === "") return "---";
+        if (valStr.includes("No aplica") || valStr.includes("Sin especificar")) return valStr;
+        let parsed = parseCurrency(valStr); if (parsed === 0) return valStr;
+        return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function cleanUrl(urlStr) {
+        if (!urlStr) return "";
+        let clean = urlStr.trim().replace(/^"|"$/g, '');
+        if (clean.toLowerCase().startsWith("http")) return clean;
+        return "";
+    }
+
+    function parseCSV(text) {
+        let lines = []; let row = [""]; let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            let c = text[i]; let next = text[i+1];
+            if (c === '"') { if (inQuotes && next === '"') { row[row.length - 1] += '"'; i++; } else { inQuotes = !inQuotes; } }
+            else if (c === ',' && !inQuotes) { row.push(''); }
+            else if ((c === '\r' || c === '\n') && !inQuotes) { if (c === '\r' &&
