@@ -162,27 +162,22 @@
 
                 const bankText = row[idx.bank] || ""; const aliasText = row[idx.alias] || "";
                 const cbuText = row[idx.cbu] || ""; const holderText = row[idx.holder] || "---";
-                
-                // LEER ESTRICTAMENTE EL SALDO DE LA CELDA REAL DEL EXCEL
                 const balanceRaw = idx.balance !== -1 && row[idx.balance] ? row[idx.balance] : ""; 
                 const dateSenaText = idx.dateSena !== -1 && row[idx.dateSena] ? row[idx.dateSena] : ""; 
                 const dateBalanceText = idx.dateBalance !== -1 && row[idx.dateBalance] ? row[idx.dateBalance] : "";
+                
                 const estadoManualText = idx.estadoManual !== -1 && row[idx.estadoManual] ? row[idx.estadoManual].trim().toLowerCase() : "";
 
                 const isUsd = itemText.toUpperCase().includes("USD");
                 
                 let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
                 let numShipping = parseCurrency(shippingRaw); 
-                
-                // El número de saldo para la tarjeta viene directo de la celda del Excel
                 let numBalance = parseCurrency(balanceRaw);
                 
-                // Fallback de seguridad solo si la celda está absolutamente vacía
                 if (numBalance === 0 && balanceRaw.trim() === "" && numTotal > 0) { 
                     numBalance = (numTotal + numShipping) - numDeposit; 
                 }
 
-                // Asignar estado según tu columna manual
                 let statusText = "Pendiente", statusClass = "pendiente";
                 if (estadoManualText !== "") {
                     if (estadoManualText.includes("pend") || estadoManualText.includes("espera")) {
@@ -198,9 +193,20 @@
                     else if (fallbackPaid > 0 && numBalance <= 0) { statusText = "Pagado"; statusClass = "pagado"; }
                 }
 
-                // Cálculo para los contadores generales superiores
+                // NUEVA LÓGICA DE FILTRADO PARA LOS CONTADORES SUPERIORES
                 let numPaid = (numTotal + numShipping) - numBalance;
-                if (!isUsd) { totalArs += (numTotal + numShipping); paidArs += numPaid; pendingArs += numBalance; }
+                
+                // Si está pagado, forzamos que no sume deuda al Saldo Restante general
+                let saldoParaSumar = numBalance;
+                if (statusText === "Pagado") {
+                    saldoParaSumar = 0;
+                }
+
+                if (!isUsd) { 
+                    totalArs += (numTotal + numShipping); 
+                    paidArs += numPaid; 
+                    pendingArs += saldoParaSumar; // Solo acumula ítems PENDIENTES o PARCIALES
+                }
 
                 const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
                 cardHtml.innerHTML = `
