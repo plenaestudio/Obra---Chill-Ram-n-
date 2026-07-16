@@ -11,10 +11,10 @@
             --text-main: #1e293b;
             --text-muted: #64748b;
             --primary: #2d3d4d;
-            --accent-paid: #16a34a;
             --accent-pending: #ea580c;
             --accent-sena: #d97706; 
-            --accent-total: #dc2626; /* Rojo para pago total pendiente */
+            --accent-total: #dc2626; /* Rojo para pago total */
+            --accent-ejecucion: #0369a1; /* Azul para en ejecución */
             --border-color: #e2e8f0;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
@@ -26,12 +26,12 @@
         .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 35px; }
         .card { background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); border-left: 5px solid var(--primary); }
         .card.total { border-left-color: #3b82f6; }
-        .card.paid { border-left-color: var(--accent-paid); }
+        .card.paid { border-left-color: #16a34a; }
         .card.pending { border-left-color: var(--accent-pending); }
         .card.pending-usd { border-left-color: #8b5cf6; } 
         .card-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
         .card-value { font-size: 24px; font-weight: 700; margin-top: 8px; }
-        .card.paid .card-value { color: var(--accent-paid); }
+        .card.paid .card-value { color: #16a34a; }
         .card.pending .card-value { color: var(--accent-pending); }
         .card.pending-usd .card-value { color: #8b5cf6; }
         .status-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -45,8 +45,7 @@
         .badge.pendiente-total { background-color: #fee2e2; color: var(--accent-total); }
         .badge.pendiente-sena { background-color: #fef3c7; color: var(--accent-sena); }
         .badge.pendiente-saldo { background-color: #ffedd5; color: var(--accent-pending); }
-        .badge.parcial { background-color: #e0f2fe; color: #0369a1; }
-        .badge.pagado { background-color: #dcfce7; color: #16a34a; }
+        .badge.ejecucion { background-color: #e0f2fe; color: var(--accent-ejecucion); }
         .values-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #f1f5f9; margin-bottom: 16px; }
         .val-box { display: flex; flex-direction: column; }
         .val-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 500; }
@@ -84,8 +83,10 @@
     function copyAlias(aliasText) { navigator.clipboard.writeText(aliasText); alert('¡Alias copiado!: ' + aliasText); }
     
     function parseCurrency(valStr) {
-        if (!valStr || typeof valStr !== 'string' || valStr.trim() === "" || valStr.includes("No aplica") || valStr.includes("Sin especificar")) return 0;
-        let clean = valStr.replace(/\$/g, '').replace(/\s/g, '').trim();
+        if (!valStr) return 0;
+        let str = String(valStr).trim();
+        if (str === "" || str.includes("No aplica") || str.includes("Sin especificar")) return 0;
+        let clean = str.replace(/\$/g, '').replace(/\s/g, '').trim();
         if (clean.includes('.') && !clean.includes(',')) {
             let parts = clean.split('.');
             if (parts.length > 2 || parts[parts.length - 1].length === 3) { clean = clean.replace(/\./g, ''); }
@@ -96,15 +97,17 @@
     }
 
     function formatDisplay(valStr, isUsd) {
-        if (!valStr || valStr.trim() === "") return "---";
-        if (valStr.includes("No aplica") || valStr.includes("Sin especificar")) return valStr;
-        let parsed = parseCurrency(valStr); if (parsed === 0) return valStr;
+        if (!valStr) return "---";
+        let str = String(valStr).trim();
+        if (str === "") return "---";
+        if (str.includes("No aplica") || str.includes("Sin especificar")) return str;
+        let parsed = parseCurrency(str); if (parsed === 0) return str;
         return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
     }
 
     function cleanUrl(urlStr) {
         if (!urlStr) return "";
-        let clean = urlStr.trim().replace(/^"|"$/g, '');
+        let clean = String(urlStr).trim().replace(/^"|"$/g, '');
         if (clean.toLowerCase().startsWith("http")) return clean;
         return "";
     }
@@ -181,48 +184,42 @@
                 let numShipping = parseCurrency(shippingRaw); 
                 
                 let numBalance = 0;
-                let tieneSaldoManual = balanceRaw.trim() !== "" && balanceRaw.trim() !== "---";
+                let balanceCleanStr = String(balanceRaw).trim();
+                let tieneSaldoManual = balanceCleanStr !== "" && balanceCleanStr !== "---";
                 
                 if (tieneSaldoManual) {
-                    numBalance = parseCurrency(balanceRaw);
+                    numBalance = parseCurrency(balanceCleanStr);
                 } else if (numTotal > 0) {
                     numBalance = (numTotal + numShipping) - numDeposit;
                 }
 
-                let statusText = "Pendiente Pago Saldo", statusClass = "pendiente-saldo";
+                // MAPEADO CON TUS CUATRO ETIQUETAS FINALES ESTABLECIDAS
+                let statusText = "EN EJECUCIÓN", statusClass = "ejecucion";
                 if (estadoManualText !== "") {
                     if (estadoManualText.includes("total")) {
-                        statusText = "Pendiente Pago Total"; statusClass = "pendiente-total";
+                        statusText = "PENDIENTE (PAGO TOTAL)"; statusClass = "pendiente-total";
                     } else if (estadoManualText.includes("seña") || estadoManualText.includes("sena")) {
-                        statusText = "Pendiente Pago Seña"; statusClass = "pendiente-sena";
+                        statusText = "PENDIENTE (SEÑA - 1ER PAGO)"; statusClass = "pendiente-sena";
                     } else if (estadoManualText.includes("saldo")) {
-                        statusText = "Pendiente Pago Saldo"; statusClass = "pendiente-saldo";
-                    } else if (estadoManualText.includes("pend") || estadoManualText.includes("espera")) {
-                        statusText = "Pendiente Pago Saldo"; statusClass = "pendiente-saldo";
-                    } else if (estadoManualText.includes("pagad") || estadoManualText.includes("listo")) {
-                        statusText = "Pagado"; statusClass = "pagado";
-                    } else if (estadoManualText.includes("parcial")) {
-                        statusText = "Parcial"; statusClass = "parcial";
+                        statusText = "PENDIENTE (SALDO)"; statusClass = "pendiente-saldo";
+                    } else if (estadoManualText.includes("ejecuc") || estadoManualText.includes("parcial")) {
+                        statusText = "EN EJECUCIÓN"; statusClass = "ejecucion";
+                    } else {
+                        statusText = "EN EJECUCIÓN"; statusClass = "ejecucion";
                     }
                 } else {
-                    let fallbackPaid = (numTotal + numShipping) - numBalance;
-                    if (fallbackPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
-                    else if (fallbackPaid > 0 && numBalance <= 0) { statusText = "Pagado"; statusClass = "pagado"; }
+                    statusText = "EN EJECUCIÓN"; statusClass = "ejecucion";
                 }
 
                 let numPaid = numTotal > 0 ? (numTotal + numShipping) - numBalance : numDeposit;
-                
-                let saldoParaSumar = numBalance;
-                if (statusText === "Pagado") {
-                    saldoParaSumar = 0;
-                }
 
+                // Sumamos totales correspondientes (ARS o USD)
                 if (isUsd) {
-                    pendingUsd += saldoParaSumar;
+                    pendingUsd += numBalance;
                 } else { 
                     totalArs += (numTotal + numShipping); 
                     paidArs += numPaid; 
-                    pendingArs += saldoParaSumar;
+                    pendingArs += numBalance;
                 }
 
                 const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
@@ -235,7 +232,7 @@
                         <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${formatDisplay(shippingRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'var(--accent-paid)'}; font-weight:bold;">${formatDisplay(tieneSaldoManual ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'#16a34a'}; font-weight:bold;">${formatDisplay(tieneSaldoManual ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
                     </div>
                     <div class="info-block">
                         <strong>Modo de compra establecido:</strong> ${methodText}<br>
