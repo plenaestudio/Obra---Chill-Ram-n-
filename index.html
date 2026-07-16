@@ -83,23 +83,33 @@
     function copyAlias(aliasText) { navigator.clipboard.writeText(aliasText); alert('¡Alias copiado!: ' + aliasText); }
     
     function parseCurrency(valStr) {
-        if (!valStr) return 0;
+        if (valStr === undefined || valStr === null) return 0;
         let str = String(valStr).trim();
-        if (str === "" || str.includes("No aplica") || str.includes("Sin especificar")) return 0;
+        if (str === "" || str === "---" || str.includes("No aplica") || str.includes("Sin especificar")) return 0;
+        
+        // Removemos signos de pesos y espacios
         let clean = str.replace(/\$/g, '').replace(/\s/g, '').trim();
+        
+        // Si tiene formato de puntos de miles argentinos (ej: 18.097.644) los volamos para parsear el número limpio
         if (clean.includes('.') && !clean.includes(',')) {
             let parts = clean.split('.');
-            if (parts.length > 2 || parts[parts.length - 1].length === 3) { clean = clean.replace(/\./g, ''); }
+            if (parts.length > 2 || parts[parts.length - 1].length === 3) { 
+                clean = clean.replace(/\./g, ''); 
+            }
         } else if (clean.includes('.') && clean.includes(',')) {
             clean = clean.replace(/\./g, '').replace(',', '.');
-        } else if (clean.includes(',')) { clean = clean.replace(',', '.'); }
-        let num = parseFloat(clean); return isNaN(num) ? 0 : num;
+        } else if (clean.includes(',')) { 
+            clean = clean.replace(',', '.'); 
+        }
+        
+        let num = parseFloat(clean); 
+        return isNaN(num) ? 0 : num;
     }
 
     function formatDisplay(valStr, isUsd) {
-        if (!valStr) return "---";
+        if (valStr === undefined || valStr === null) return "---";
         let str = String(valStr).trim();
-        if (str === "") return "---";
+        if (str === "" || str === "---") return "---";
         if (str.includes("No aplica") || str.includes("Sin especificar")) return str;
         let parsed = parseCurrency(str); if (parsed === 0) return str;
         return (isUsd ? "USD $ " : "$ ") + parsed.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -183,9 +193,10 @@
                 let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
                 let numShipping = parseCurrency(shippingRaw); 
                 
+                // PRIORIDAD ABSOLUTA DEL SALDO ESCRITO MANUALMENTE
                 let numBalance = 0;
                 let balanceCleanStr = String(balanceRaw).trim();
-                let tieneSaldoManual = balanceCleanStr !== "" && balanceCleanStr !== "---";
+                let tieneSaldoManual = balanceCleanStr !== "" && balanceCleanStr !== "---" && balanceCleanStr !== "0";
                 
                 if (tieneSaldoManual) {
                     numBalance = parseCurrency(balanceCleanStr);
@@ -193,7 +204,7 @@
                     numBalance = (numTotal + numShipping) - numDeposit;
                 }
 
-                // MAPEADO CON TUS CUATRO ETIQUETAS FINALES ESTABLECIDAS
+                // Definición de estados
                 let statusText = "EN EJECUCIÓN", statusClass = "ejecucion";
                 if (estadoManualText !== "") {
                     if (estadoManualText.includes("total")) {
@@ -232,7 +243,7 @@
                         <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${formatDisplay(shippingRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'#16a34a'}; font-weight:bold;">${formatDisplay(tieneSaldoManual ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'#16a34a'}; font-weight:bold;">${formatDisplay(numBalance.toString(), isUsd)}</span></div>
                     </div>
                     <div class="info-block">
                         <strong>Modo de compra establecido:</strong> ${methodText}<br>
