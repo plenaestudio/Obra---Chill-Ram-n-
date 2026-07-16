@@ -175,4 +175,91 @@
                 
                 const estadoManualText = idx.estadoManual !== -1 && row[idx.estadoManual] ? row[idx.estadoManual].trim().toLowerCase() : "";
 
-                const isUsd = itemText.toUpperCase().includes("USD
+                const isUsd = itemText.toUpperCase().includes("USD");
+                
+                let numTotal = parseCurrency(totalRaw); let numDeposit = parseCurrency(depositRaw);
+                let numShipping = parseCurrency(shippingRaw); 
+                
+                let numBalance = 0;
+                let tieneSaldoManual = balanceRaw.trim() !== "" && balanceRaw.trim() !== "---";
+                
+                if (tieneSaldoManual) {
+                    numBalance = parseCurrency(balanceRaw);
+                } else if (numTotal > 0) {
+                    numBalance = (numTotal + numShipping) - numDeposit;
+                }
+
+                let statusText = "Pendiente Pago Saldo", statusClass = "pendiente-saldo";
+                if (estadoManualText !== "") {
+                    if (estadoManualText.includes("total")) {
+                        statusText = "Pendiente Pago Total"; statusClass = "pendiente-total";
+                    } else if (estadoManualText.includes("seña") || estadoManualText.includes("sena")) {
+                        statusText = "Pendiente Pago Seña"; statusClass = "pendiente-sena";
+                    } else if (estadoManualText.includes("saldo")) {
+                        statusText = "Pendiente Pago Saldo"; statusClass = "pendiente-saldo";
+                    } else if (estadoManualText.includes("pend") || estadoManualText.includes("espera")) {
+                        statusText = "Pendiente Pago Saldo"; statusClass = "pendiente-saldo";
+                    } else if (estadoManualText.includes("pagad") || estadoManualText.includes("listo")) {
+                        statusText = "Pagado"; statusClass = "pagado";
+                    } else if (estadoManualText.includes("parcial")) {
+                        statusText = "Parcial"; statusClass = "parcial";
+                    }
+                } else {
+                    let fallbackPaid = (numTotal + numShipping) - numBalance;
+                    if (fallbackPaid > 0 && numBalance > 0) { statusText = "Parcial"; statusClass = "parcial"; }
+                    else if (fallbackPaid > 0 && numBalance <= 0) { statusText = "Pagado"; statusClass = "pagado"; }
+                }
+
+                let numPaid = numTotal > 0 ? (numTotal + numShipping) - numBalance : numDeposit;
+                
+                let saldoParaSumar = numBalance;
+                if (statusText === "Pagado") {
+                    saldoParaSumar = 0;
+                }
+
+                if (isUsd) {
+                    pendingUsd += saldoParaSumar;
+                } else { 
+                    totalArs += (numTotal + numShipping); 
+                    paidArs += numPaid; 
+                    pendingArs += saldoParaSumar;
+                }
+
+                const cardHtml = document.createElement('div'); cardHtml.className = 'item-row';
+                cardHtml.innerHTML = `
+                    <div class="item-header">
+                        <div><div class="item-title">${itemText}</div><div class="item-provider">Proveedor: <strong>${providerText}</strong></div></div>
+                        <span class="badge ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="values-grid">
+                        <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${formatDisplay(shippingRaw, isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'var(--accent-paid)'}; font-weight:bold;">${formatDisplay(tieneSaldoManual ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
+                    </div>
+                    <div class="info-block">
+                        <strong>Modo de compra establecido:</strong> ${methodText}<br>
+                        ${linkText ? `<a href="${linkText}" target="_blank" class="online-btn">🛒 Ir al link de compra online</a>` : ''}
+                        ${methodText.toLowerCase().includes("transf") || aliasText ? `
+                            <div class="bank-box">
+                                <strong>Datos de Transferencia:</strong><br>
+                                🏢 Banco: ${bankText || '---'} | 👤 Titular: ${holderText}<br>
+                                    💳 CBU: ${cbuText || '---'}<br>
+                                🔑 Alias: <strong>${aliasText || '---'}</strong> ${aliasText && aliasText !== "No aplica" ? `<button class="copy-btn" onclick="copyAlias('${aliasText}')">📋 Copiar Alias</button>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                    ${dateSenaText || dateBalanceText ? `<div class="dates-box">${dateSenaText ? `<span>📅 <strong>Fecha Seña/Compra:</strong> ${dateSenaText}</span>`:''} ${dateBalanceText ? `<span>⏳ <strong>Est. Pago Saldo:</strong> ${dateBalanceText}</span>`:''}</div>` : ''}
+                `; container.appendChild(cardHtml);
+            }
+            document.getElementById('grand-total').innerText = "$ " + totalArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('grand-paid').innerText = "$ " + paidArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('grand-pending').innerText = "$ " + pendingArs.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('grand-pending-usd').innerText = "USD $ " + pendingUsd.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+            document.getElementById('loading-msg').style.display = 'none'; document.getElementById('summary-section').style.display = 'grid';
+        } catch (error) { document.getElementById('loading-msg').innerText = "Error de sincronización."; }
+    }
+    window.onload = loadSheetData;
+</script>
+</body>
+</html>
