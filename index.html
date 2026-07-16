@@ -87,10 +87,8 @@
         let str = String(valStr).trim();
         if (str === "" || str === "---" || str.includes("No aplica") || str.includes("Sin especificar")) return 0;
         
-        // Removemos signos de pesos y espacios
         let clean = str.replace(/\$/g, '').replace(/\s/g, '').trim();
         
-        // Si tiene formato de puntos de miles argentinos (ej: 18.097.644) los volamos para parsear el número limpio
         if (clean.includes('.') && !clean.includes(',')) {
             let parts = clean.split('.');
             if (parts.length > 2 || parts[parts.length - 1].length === 3) { 
@@ -157,7 +155,8 @@
                 alias: cleanHeaders.findIndex(h => h.includes("alias")),
                 cbu: cleanHeaders.findIndex(h => h.includes("cbu")), 
                 holder: cleanHeaders.findIndex(h => h.includes("titular")), 
-                balance: rawHeaders.findIndex(h => h.includes("saldo pendiente")), 
+                // CORRECCIÓN EXACTA DE COLUMNA DE SALDO (Busca exactamente "saldo")
+                balance: rawHeaders.findIndex(h => h.trim() === "saldo" || h.trim() === "saldo pendiente"), 
                 dateSena: rawHeaders.findIndex(h => h.includes("fecha de seña") || h.includes("sena/compra")), 
                 dateBalance: rawHeaders.findIndex(h => h.includes("fecha estimada de pago de saldo")), 
                 estadoManual: cleanHeaders.findIndex(h => h.includes("estado"))
@@ -196,7 +195,7 @@
                 // PRIORIDAD ABSOLUTA DEL SALDO ESCRITO MANUALMENTE
                 let numBalance = 0;
                 let balanceCleanStr = String(balanceRaw).trim();
-                let tieneSaldoManual = balanceCleanStr !== "" && balanceCleanStr !== "---" && balanceCleanStr !== "0";
+                let tieneSaldoManual = balanceCleanStr !== "" && balanceCleanStr !== "---";
                 
                 if (tieneSaldoManual) {
                     numBalance = parseCurrency(balanceCleanStr);
@@ -243,7 +242,7 @@
                         <div class="val-box"><span class="val-label">Precio Total</span><span class="val-amount">${formatDisplay(totalRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Envío</span><span class="val-amount">${formatDisplay(shippingRaw, isUsd)}</span></div>
                         <div class="val-box"><span class="val-label">Seña/Pago Inicial</span><span class="val-amount">${formatDisplay(depositRaw, isUsd)}</span></div>
-                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'#16a34a'}; font-weight:bold;">${formatDisplay(numBalance.toString(), isUsd)}</span></div>
+                        <div class="val-box"><span class="val-label">Saldo Pendiente</span><span class="val-amount" style="color:${numBalance > 0 ? 'var(--accent-pending)':'#16a34a'}; font-weight:bold;">${formatDisplay(tieneSaldoManual ? balanceRaw : numBalance.toString(), isUsd)}</span></div>
                     </div>
                     <div class="info-block">
                         <strong>Modo de compra establecido:</strong> ${methodText}<br>
